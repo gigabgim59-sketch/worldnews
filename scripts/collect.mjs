@@ -54,5 +54,10 @@ for(const [f,a,key] of todo){if(a.titleKo)continue;if(stopped||!budget||new Text
 try{usage.characters+=a.title.length;const r=await translate(a.title,f.source.lang,process.env);if(!bad(r.translated,a.title)){a.titleKo=r.translated;cached[key]=r.translated;}}catch(e){console.warn('예비 번역 중단: '+e.message);stopped=true;}}
 for(const [f,a] of jobs){if(!f.items.includes(a))continue;if(!a.titleKo)console.log('미번역 '+f.source.id+': '+a.title.slice(0,70));else if(bad(a.titleKo,a.title))console.log('의심 '+f.source.id+': '+a.titleKo.slice(0,70));}
 const result={schemaVersion:1,generatedAt:new Date().toISOString(),feeds,collector:{successful,total:sources.length,translated:feeds.reduce((n,f)=>n+f.items.filter(a=>a.titleKo).length,0)}};
+// 브리핑용 누적 기록: 최근 4일 치 제목을 모두 모아 둠 (매시간 새로 들어온 제목이 쌓임)
+{const H=(await read('public/data/history.json'))||{items:[]};const seen=new Map(H.items.map(x=>[x.url,x]));
+for(const f of feeds)for(const a of f.items){const o=seen.get(a.url);if(o){if(a.titleKo)o.titleKo=a.titleKo;continue;}seen.set(a.url,{source:f.source.id,country:f.source.country,title:a.title,titleKo:a.titleKo||null,url:a.url,date:a.date,topics:a.topics||[]});}
+const cut=Date.now()-4*86400000;const items=[...seen.values()].filter(x=>+new Date(x.date)>cut).sort((a,b)=>b.date.localeCompare(a.date));
+await write('public/data/history.json',{updated:new Date().toISOString(),count:items.length,items});console.log('누적 기록: '+items.length+'건');}
 await write('public/data/news.json',result);await fs.writeFile(new URL('public/data/news.js',root),'window.WORLD_NEWS='+JSON.stringify(result).replace(/</g,'\\u003c')+';\n');await write('.cache/news-last-good.json',result);
 const keys=Object.keys(cached);for(const k of keys.slice(0,Math.max(0,keys.length-2000)))delete cached[k];await write('.cache/translations.json',cached);await write('.cache/translation-usage.json',usage);console.log(JSON.stringify(result.collector));
